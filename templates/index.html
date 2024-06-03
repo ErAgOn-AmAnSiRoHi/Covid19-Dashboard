@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COVID-19 Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        body {
+            background-color: #f4faff;
+            font-family: 'Arial', sans-serif;
+        }
+        .navbar {
+            background-color: #00d1b2;
+        }
+        .navbar-brand .navbar-item {
+            color: #fff;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .container {
+            padding: 20px;
+        }
+        .title {
+            color: #00d1b2;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .footer {
+            background-color: #00d1b2;
+            color: #fff;
+            padding: 10px 0;
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+            text-align: center;
+        }
+        .chart-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar" role="navigation" aria-label="main navigation">
+        <div class="navbar-brand">
+            <a class="navbar-item">
+                COVID-19 Dashboard
+            </a>
+        </div>
+    </nav>
+
+    <section class="section">
+        <div class="container">
+            <h1 class="title">COVID-19 Dashboard</h1>
+            <div class="chart-container">
+                <canvas id="covidChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="content has-text-centered">
+            <p>Stay Safe. Wear a Mask.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            const ctx = document.getElementById('covidChart').getContext('2d');
+            let covidChart;
+
+            function fetchData() {
+                fetch('/api/data')
+                    .then(response => response.json())
+                    .then(data => {
+                        const statewise = data.statewise.slice(1); // Skip total
+                        const labels = statewise.map(item => item.state);
+                        const cases = statewise.map(item => item.confirmed);
+
+                        const chartData = {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Confirmed Cases',
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1,
+                                data: cases
+                            }]
+                        };
+
+                        if (covidChart) {
+                            covidChart.destroy();
+                        }
+
+                        covidChart = new Chart(ctx, {
+                            type: 'bar',
+                            data: chartData,
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    yAxes: [{
+                                        ticks: {
+                                            beginAtZero: true
+                                        }
+                                    }]
+                                }
+                            }
+                        });
+                    });
+            }
+
+            socket.on('update_data', function(data) {
+                const statewise = data.statewise.slice(1); // Skip total
+                const labels = statewise.map(item => item.state);
+                const cases = statewise.map(item => item.confirmed);
+
+                covidChart.data.labels = labels;
+                covidChart.data.datasets[0].data = cases;
+                covidChart.update();
+            });
+
+            fetchData();
+
+            setInterval(() => {
+                socket.emit('request_data');
+            }, 60000); // Request data every minute
+        });
+    </script>
+</body>
+</html>
+
